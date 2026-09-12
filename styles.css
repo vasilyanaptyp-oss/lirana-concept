@@ -171,7 +171,8 @@ a:hover{text-decoration:underline;}
 }
 
 /* ---------- Sections ---------- */
-.section{padding:62px 0;}
+.section{padding:62px 0;scroll-margin-top:78px;}
+#virsus{scroll-margin-top:0;}
 .section-alt{background:var(--bg-alt);border-block:1px solid var(--line-2);}
 @media (min-width:1000px){.section{padding:92px 0;}}
 

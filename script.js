@@ -54,11 +54,6 @@
     return parts.join(' · ');
   }
 
-  function updateSummary() {
-    summaryText.textContent = buildSummary();
-    syncActiveCard();
-  }
-
   function syncActiveCard() {
     var current = fType.value.trim();
     cards.forEach(function (card) {
@@ -70,6 +65,11 @@
         btn.textContent = on ? 'Pasirinkta' : 'Pasirinkti';
       }
     });
+  }
+
+  function updateSummary() {
+    summaryText.textContent = buildSummary();
+    syncActiveCard();
   }
 
   ['input', 'change'].forEach(function (evt) {
@@ -96,8 +96,8 @@
       });
       if (!matched) fType.value = value;
 
-      if (result) result.hidden = true;
-      if (form) form.hidden = false;
+      result.hidden = true;
+      form.hidden = false;
 
       updateSummary();
       scrollToForm();
@@ -153,8 +153,9 @@
     form.hidden = true;
     result.hidden = false;
     result.scrollIntoView({ block: 'nearest' });
-    result.querySelector('h3').setAttribute('tabindex', '-1');
-    result.querySelector('h3').focus({ preventScroll: true });
+    var heading = result.querySelector('h3');
+    heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: true });
   });
 
   resultBack.addEventListener('click', function () {
@@ -167,22 +168,64 @@
   var revealables = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (!('IntersectionObserver' in window) || reduceMotion) {
+  function revealAll() {
     revealables.forEach(function (el) { el.classList.add('is-in'); });
-  } else {
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-in');
-          io.unobserve(entry.target);
-        }
-      });
-    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+  }
 
+  if (reduceMotion) {
+    revealAll();
+  } else {
     revealables.forEach(function (el, i) {
       el.style.transitionDelay = Math.min(i % 6, 5) * 55 + 'ms';
-      io.observe(el);
     });
+
+    // Primary: IntersectionObserver, zero threshold and a generous margin.
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-in');
+            io.unobserve(entry.target);
+          }
+        });
+      }, { rootMargin: '240px 0px 240px 0px', threshold: 0 });
+      revealables.forEach(function (el) { io.observe(el); });
+    }
+
+    // Safety net: IntersectionObserver can skip elements during a fast flick or a
+    // programmatic jump; a rAF-throttled geometry sweep cannot.
+    var ticking = false;
+
+    function sweep() {
+      ticking = false;
+      var limit = window.innerHeight * 1.2;
+      var remaining = false;
+      revealables.forEach(function (el) {
+        if (el.classList.contains('is-in')) return;
+        if (el.getBoundingClientRect().top < limit) {
+          el.classList.add('is-in');
+        } else {
+          remaining = true;
+        }
+      });
+      if (!remaining) {
+        window.removeEventListener('scroll', onScroll);
+        window.removeEventListener('resize', onScroll);
+      }
+    }
+
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(sweep);
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    sweep();
+
+    // Last resort: nothing on this page may stay invisible.
+    window.setTimeout(revealAll, 5000);
   }
 
   updateSummary();
