@@ -193,21 +193,25 @@
     }
 
     // Safety net: IntersectionObserver can skip elements during a fast flick or a
-    // programmatic jump; a rAF-throttled geometry sweep cannot.
-    var ticking = false;
+    // programmatic jump. This geometry sweep cannot, and it deliberately avoids
+    // requestAnimationFrame, which is throttled while the tab is in the background.
+    var lastSweep = 0;
 
     function sweep() {
-      ticking = false;
-      var limit = window.innerHeight * 1.2;
+      lastSweep = Date.now();
+      var limit = window.innerHeight * 1.25;
+      var toReveal = [];
       var remaining = false;
+      // Read every rect first, write classes after, so we never thrash layout.
       revealables.forEach(function (el) {
         if (el.classList.contains('is-in')) return;
         if (el.getBoundingClientRect().top < limit) {
-          el.classList.add('is-in');
+          toReveal.push(el);
         } else {
           remaining = true;
         }
       });
+      toReveal.forEach(function (el) { el.classList.add('is-in'); });
       if (!remaining) {
         window.removeEventListener('scroll', onScroll);
         window.removeEventListener('resize', onScroll);
@@ -215,17 +219,19 @@
     }
 
     function onScroll() {
-      if (ticking) return;
-      ticking = true;
-      window.requestAnimationFrame(sweep);
+      if (Date.now() - lastSweep < 80) return;
+      sweep();
     }
 
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') sweep();
+    });
     sweep();
 
     // Last resort: nothing on this page may stay invisible.
-    window.setTimeout(revealAll, 5000);
+    window.setTimeout(revealAll, 2500);
   }
 
   updateSummary();
